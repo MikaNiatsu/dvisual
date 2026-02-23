@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { RootState } from '../store';
@@ -25,8 +25,7 @@ import { fetchDashboards, saveDashboard, fetchUsers, assignPermission, fetchDash
 import { clearFilter, clearAllFilters, setFilter } from '../store/filtersSlice';
 import { ensureDuckDBAndRestore } from '../lib/dataRestoration';
 import { useThemeMode } from '../lib/theme';
-import 'react-grid-layout/css/styles.css';
-import 'react-resizable/css/styles.css';
+// CSS imports handled in main.css or dynamically loaded
 
 const UserSearchSelect = ({
     value,
