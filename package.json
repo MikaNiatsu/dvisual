@@ -1,0 +1,21 @@
+{
+  "name": "dvisual",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "api",
+    "web"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c green,blue \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "npm run dev -w api",
+    "dev:web": "npm run dev -w web",
+    "build": "npm run build:api && npm run build:web",
+    "build:api": "npm run build -w api",
+    "build:web": "npm run build -w web",
+    "start": "npm run start -w api"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
