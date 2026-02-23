@@ -3,14 +3,14 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
-    "dev": "npm run dev -w web",
-    "dev:api": "npm run dev -w api",
-    "dev:web": "npm run dev -w web",
+    "dev": "cd web && npm run dev",
+    "dev:api": "cd api && npm run dev",
+    "dev:web": "cd web && npm run dev",
     "dev:full": "concurrently -n api,web -c green,blue \"npm:dev:api\" \"npm:dev:web\"",
-    "build": "npm run build:api && npm run build:web",
-    "build:api": "npm run build -w api",
-    "build:web": "npm run build -w web",
-    "start": "npm run start -w api"
+    "build": "cd api && npm run build && cd ../web && npm run build",
+    "build:api": "cd api && npm run build",
+    "build:web": "cd web && npm run build",
+    "start": "cd api && npm run start"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
