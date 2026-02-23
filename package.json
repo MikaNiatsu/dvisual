@@ -7,9 +7,10 @@
     "web"
   ],
   "scripts": {
-    "dev": "concurrently -n api,web -c green,blue \"npm:dev:api\" \"npm:dev:web\"",
+    "dev": "npm run dev -w web",
     "dev:api": "npm run dev -w api",
     "dev:web": "npm run dev -w web",
+    "dev:full": "concurrently -n api,web -c green,blue \"npm:dev:api\" \"npm:dev:web\"",
     "build": "npm run build:api && npm run build:web",
     "build:api": "npm run build -w api",
     "build:web": "npm run build -w web",
@@ -17,5 +18,10 @@
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.2.1",
+    "@vitejs/plugin-react": "^5.1.4",
+    "vite": "^7.3.1"
   }
 }
