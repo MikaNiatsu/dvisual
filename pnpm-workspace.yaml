@@ -1,6 +1,0 @@
-packages:
-  - 'api'
-  - 'web'
-
-settings:
-  lockfileVersion: 9
