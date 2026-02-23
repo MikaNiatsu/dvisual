@@ -249,12 +249,12 @@ const app = new Elysia()
     // --- USERS MANAGEMENT (Master Only) ---
     .get("/api/users", async ({ headers, jwt, set }) => {
         const auth = await jwt.verify(headers['authorization']?.split(' ')[1]);
-        if (!auth || !auth.is_master) { set.status = 403; return { error: "Forbidden" }; }
+        if (!auth || !Boolean(auth.is_master)) { set.status = 403; return { error: "Forbidden" }; }
         return db.prepare("SELECT id, username, is_master, created_at FROM users").all();
     })
     .post("/api/users", async ({ body, headers, jwt, set }) => {
         const auth = await jwt.verify(headers['authorization']?.split(' ')[1]);
-        if (!auth || !auth.is_master) { set.status = 403; return { error: "Forbidden" }; }
+        if (!auth || !Boolean(auth.is_master)) { set.status = 403; return { error: "Forbidden" }; }
         
         const { username, password, is_master } = body;
         const id = crypto.randomUUID();
@@ -275,7 +275,7 @@ const app = new Elysia()
     // --- ADMIN MANAGEMENT (Master Only) ---
     .get("/api/admin/roles", async ({ headers, jwt, set }) => {
         const auth = await jwt.verify(headers['authorization']?.split(' ')[1]);
-        if (!auth || !auth.is_master) { set.status = 403; return { error: "Forbidden" }; }
+        if (!auth || !Boolean(auth.is_master)) { set.status = 403; return { error: "Forbidden" }; }
 
         const roles = db.prepare(`
             SELECT r.id, r.dashboard_id, d.name as dashboard_name, r.name, r.permissions, r.created_at
@@ -305,7 +305,7 @@ const app = new Elysia()
     })
     .post("/api/admin/roles", async ({ body, headers, jwt, set }) => {
         const auth = await jwt.verify(headers['authorization']?.split(' ')[1]);
-        if (!auth || !auth.is_master) { set.status = 403; return { error: "Forbidden" }; }
+        if (!auth || !Boolean(auth.is_master)) { set.status = 403; return { error: "Forbidden" }; }
 
         const { dashboard_id, name, permissions } = body as any;
         const dashboard = db.prepare("SELECT id FROM dashboards WHERE id = ?").get(dashboard_id);
@@ -328,7 +328,7 @@ const app = new Elysia()
     })
     .get("/api/admin/ip-rules", async ({ headers, jwt, set }) => {
         const auth = await jwt.verify(headers['authorization']?.split(' ')[1]);
-        if (!auth || !auth.is_master) { set.status = 403; return { error: "Forbidden" }; }
+        if (!auth || !Boolean(auth.is_master)) { set.status = 403; return { error: "Forbidden" }; }
 
         return db.prepare(`
             SELECT ip.id, ip.ip_pattern, ip.dashboard_id, ip.access_level, d.name as dashboard_name
@@ -339,7 +339,7 @@ const app = new Elysia()
     })
     .post("/api/admin/ip-rules", async ({ body, headers, jwt, set }) => {
         const auth = await jwt.verify(headers['authorization']?.split(' ')[1]);
-        if (!auth || !auth.is_master) { set.status = 403; return { error: "Forbidden" }; }
+        if (!auth || !Boolean(auth.is_master)) { set.status = 403; return { error: "Forbidden" }; }
 
         const { dashboard_id, ip_pattern, access_level } = body as any;
         const dashboard = db.prepare("SELECT id FROM dashboards WHERE id = ?").get(dashboard_id);
@@ -360,7 +360,7 @@ const app = new Elysia()
     })
     .post("/api/admin/reset-database", async ({ body, headers, jwt, set }) => {
         const auth = await jwt.verify(headers['authorization']?.split(' ')[1]);
-        if (!auth || !auth.is_master) { set.status = 403; return { error: "Forbidden" }; }
+        if (!auth || !Boolean(auth.is_master)) { set.status = 403; return { error: "Forbidden" }; }
 
         if ((body as any).confirm !== "LIMPIAR_DB") {
             set.status = 400;
@@ -388,7 +388,7 @@ const app = new Elysia()
     })
     .delete("/api/admin/ip-rules/:ruleId", async ({ params, headers, jwt, set }) => {
         const auth = await jwt.verify(headers['authorization']?.split(' ')[1]);
-        if (!auth || !auth.is_master) { set.status = 403; return { error: "Forbidden" }; }
+        if (!auth || !Boolean(auth.is_master)) { set.status = 403; return { error: "Forbidden" }; }
         db.prepare("DELETE FROM ip_rules WHERE id = ?").run(params.ruleId);
         return { success: true };
     })
@@ -406,8 +406,8 @@ const app = new Elysia()
         if (token) {
             const payload = await jwt.verify(token);
             if (payload) {
-                userId = payload.id;
-                isMaster = payload.is_master;
+                userId = payload.id as string || null;
+                isMaster = Boolean(payload.is_master);
             }
         }
 
@@ -491,14 +491,15 @@ const app = new Elysia()
         if (!payload) { set.status = 401; return { error: "Unauthorized" }; }
 
         const { id, name, layout } = body;
-        // Check if exists and if user has edit rights
+        const userId = payload.id as string;
+        const isMaster = Boolean(payload.is_master);
         const existing: any = db.prepare("SELECT owner_id FROM dashboards WHERE id = ?").get(id);
-        
+
         if (existing) {
             // Check permission
-            if (!payload.is_master && existing.owner_id !== payload.id) {
-                 const perm: any = db.prepare("SELECT access_level FROM dashboard_permissions WHERE dashboard_id = ? AND user_id = ?").get(id, payload.id);
-                 const rolePerms = getRolePermissionsForUser(id, payload.id);
+            if (!isMaster && existing.owner_id !== userId) {
+                 const perm: any = db.prepare("SELECT access_level FROM dashboard_permissions WHERE dashboard_id = ? AND user_id = ?").get(id, userId);
+                 const rolePerms = getRolePermissionsForUser(id, userId);
                  const canEditByRole = rolePerms.has('edit') || rolePerms.has('manage');
                  if ((!perm || perm.access_level === 'view') && !canEditByRole) {
                      set.status = 403; return { error: "Read only access" };
@@ -508,7 +509,7 @@ const app = new Elysia()
 
         try {
             // If new, set owner
-            const ownerId = existing ? existing.owner_id : payload.id;
+            const ownerId = existing ? existing.owner_id : userId;
             db.prepare("INSERT OR REPLACE INTO dashboards (id, name, layout, owner_id, updated_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)").run(id, name, JSON.stringify(layout), ownerId);
             return { success: true };
         } catch (e: any) {
@@ -527,12 +528,13 @@ const app = new Elysia()
     .get("/api/dashboards/:id/permissions", async ({ params, headers, jwt, set }) => {
         const auth = await jwt.verify(headers['authorization']?.split(' ')[1]);
         if (!auth) { set.status = 401; return { error: "Unauthorized" }; }
-        
-        // Only owner or master can see permissions
+
+        const authId = auth.id as string;
+        const authIsMaster = Boolean(auth.is_master);
         const dash: any = db.prepare("SELECT owner_id FROM dashboards WHERE id = ?").get(params.id);
         if (!dash) { set.status = 404; return { error: "Dashboard not found" }; }
-        
-        if (!canManageDashboard(params.id, auth.id, auth.is_master)) {
+
+        if (!canManageDashboard(params.id, authId, authIsMaster)) {
             set.status = 403; return { error: "Forbidden" };
         }
 
@@ -548,9 +550,11 @@ const app = new Elysia()
     .post("/api/dashboards/:id/permissions", async ({ params, body, headers, jwt, set }) => {
         const auth = await jwt.verify(headers['authorization']?.split(' ')[1]);
         if (!auth) { set.status = 401; return { error: "Unauthorized" }; }
-        
+
+        const authId = auth.id as string;
+        const authIsMaster = Boolean(auth.is_master);
         const dash: any = db.prepare("SELECT owner_id FROM dashboards WHERE id = ?").get(params.id);
-        if (!canManageDashboard(params.id, auth.id, auth.is_master)) {
+        if (!canManageDashboard(params.id, authId, authIsMaster)) {
             set.status = 403; return { error: "Forbidden" };
         }
 
@@ -578,7 +582,9 @@ const app = new Elysia()
     .get("/api/dashboards/:id/roles", async ({ params, headers, jwt, set }) => {
         const auth = await jwt.verify(headers['authorization']?.split(' ')[1]);
         if (!auth) { set.status = 401; return { error: "Unauthorized" }; }
-        if (!canManageDashboard(params.id, auth.id, auth.is_master)) {
+        const authId = auth.id as string;
+        const authIsMaster = Boolean(auth.is_master);
+        if (!canManageDashboard(params.id, authId, authIsMaster)) {
             set.status = 403; return { error: "Forbidden" };
         }
 
@@ -603,7 +609,9 @@ const app = new Elysia()
     .post("/api/dashboards/:id/roles", async ({ params, body, headers, jwt, set }) => {
         const auth = await jwt.verify(headers['authorization']?.split(' ')[1]);
         if (!auth) { set.status = 401; return { error: "Unauthorized" }; }
-        if (!canManageDashboard(params.id, auth.id, auth.is_master)) {
+        const authId = auth.id as string;
+        const authIsMaster = Boolean(auth.is_master);
+        if (!canManageDashboard(params.id, authId, authIsMaster)) {
             set.status = 403; return { error: "Forbidden" };
         }
 
@@ -625,7 +633,9 @@ const app = new Elysia()
     .put("/api/dashboards/:id/roles/:roleId", async ({ params, body, headers, jwt, set }) => {
         const auth = await jwt.verify(headers['authorization']?.split(' ')[1]);
         if (!auth) { set.status = 401; return { error: "Unauthorized" }; }
-        if (!canManageDashboard(params.id, auth.id, auth.is_master)) {
+        const authId = auth.id as string;
+        const authIsMaster = Boolean(auth.is_master);
+        if (!canManageDashboard(params.id, authId, authIsMaster)) {
             set.status = 403; return { error: "Forbidden" };
         }
 
@@ -647,7 +657,9 @@ const app = new Elysia()
     .delete("/api/dashboards/:id/roles/:roleId", async ({ params, headers, jwt, set }) => {
         const auth = await jwt.verify(headers['authorization']?.split(' ')[1]);
         if (!auth) { set.status = 401; return { error: "Unauthorized" }; }
-        if (!canManageDashboard(params.id, auth.id, auth.is_master)) {
+        const authId = auth.id as string;
+        const authIsMaster = Boolean(auth.is_master);
+        if (!canManageDashboard(params.id, authId, authIsMaster)) {
             set.status = 403; return { error: "Forbidden" };
         }
         db.prepare("DELETE FROM dashboard_role_members WHERE role_id = ?").run(params.roleId);
@@ -657,7 +669,9 @@ const app = new Elysia()
     .post("/api/dashboards/:id/roles/:roleId/members", async ({ params, body, headers, jwt, set }) => {
         const auth = await jwt.verify(headers['authorization']?.split(' ')[1]);
         if (!auth) { set.status = 401; return { error: "Unauthorized" }; }
-        if (!canManageDashboard(params.id, auth.id, auth.is_master)) {
+        const authId = auth.id as string;
+        const authIsMaster = Boolean(auth.is_master);
+        if (!canManageDashboard(params.id, authId, authIsMaster)) {
             set.status = 403; return { error: "Forbidden" };
         }
         const { username } = body as any;
@@ -675,7 +689,9 @@ const app = new Elysia()
     .delete("/api/dashboards/:id/roles/:roleId/members/:userId", async ({ params, headers, jwt, set }) => {
         const auth = await jwt.verify(headers['authorization']?.split(' ')[1]);
         if (!auth) { set.status = 401; return { error: "Unauthorized" }; }
-        if (!canManageDashboard(params.id, auth.id, auth.is_master)) {
+        const authId = auth.id as string;
+        const authIsMaster = Boolean(auth.is_master);
+        if (!canManageDashboard(params.id, authId, authIsMaster)) {
             set.status = 403; return { error: "Forbidden" };
         }
         db.prepare("DELETE FROM dashboard_role_members WHERE role_id = ? AND user_id = ?").run(params.roleId, params.userId);
