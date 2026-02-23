@@ -2,10 +2,6 @@
   "name": "dvisual",
   "private": true,
   "version": "1.0.0",
-  "workspaces": [
-    "api",
-    "web"
-  ],
   "scripts": {
     "dev": "npm run dev -w web",
     "dev:api": "npm run dev -w api",
